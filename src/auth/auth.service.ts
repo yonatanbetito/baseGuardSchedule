@@ -1,19 +1,31 @@
-import { Injectable } from '@nestjs/common';
-import { sign, verify } from 'jsonwebtoken';
-
-const JWT_SECRET = '';
-
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { UsersService } from 'src/users/users.service';
+import bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
 @Injectable()
 export class AuthService {
-  generateToken(payload: any): string {
-    return sign(payload, JWT_SECRET, { expiresIn: '1h' });
+  constructor(
+    private readonly userService: UsersService,
+    private jwtService: JwtService,
+  ) {}
+  //check user name/password
+  async validateUser(name: string, password: string) {
+    const user = await this.userService.getUserByName(name);
+    if (!user) throw new UnauthorizedException('user not found');
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) throw new UnauthorizedException('worng password');
+    return user;
   }
 
-  verifyToken(token: string): any {
-    try {
-      return verify(token, JWT_SECRET);
-    } catch (e) {
-      return null;
-    }
+  //enter to payload
+  async login(user: any) {
+    const payload = {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+    };
+    return {
+      token: this.jwtService.sign(payload),
+    };
   }
 }

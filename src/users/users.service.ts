@@ -1,49 +1,73 @@
 import { Injectable } from '@nestjs/common';
-import { UserDto } from 'src/models/user.modlels';
+import { UserDto } from 'src/modelsDto/user.modlels';
+import { UserDBService } from 'src/db/dbConect';
 
 @Injectable()
 export class UsersService {
-  users: UserDto[] = [];
-  constructor() {
-    let user1: UserDto = new UserDto();
-    user1.id = '1';
-    user1.name = 'yonatan';
-    user1.email = 'yoni@gmail.com';
-    user1.password = '2580';
-
-    let user2: UserDto = new UserDto();
-    user2.id = '2';
-    user2.name = 'roni';
-    user2.email = 'roni@gmail.com';
-    user2.password = '0000';
-
-    let user3: UserDto = new UserDto();
-    user3.id = '3';
-    user3.name = 'anaelle';
-    user3.email = 'ana@gmail.com';
-    user3.password = '1111';
-
-    this.users.push(user1);
-    this.users.push(user2);
-    this.users.push(user3);
-  }
+  constructor(private readonly userDBService: UserDBService) {}
 
   async getAll() {
-    console.log('getAll actived');
-    return this.users;
-  }
-
-  async getUserById(id: string) {
-    const user = this.users.find((user) => user.id === id);
-    return user;
-  }
-
-  async creatUser(body: UserDto) {
+    const pool = this.userDBService.getPool();
+    const client = await pool.connect();
     try {
-      const { id, name, email, password, role } = body;
+      const result = await client.query('SELECT * FROM users');
+      client.release();
+      return result.rows;
     } catch (error) {
-      console.log(error);
+      client.release();
+      throw error;
     }
-    return `user ${name} created`;
   }
+
+  async getUserByName(name: string) {
+    const pool = this.userDBService.getPool();
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT * FROM users WHERE name = $1', [
+        name,
+      ]);
+      client.release();
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async createUser(body: UserDto) {
+    const pool = this.userDBService.getPool();
+    const client = await pool.connect();
+    try {
+      const { name, email, password, role } = body;
+      const result = await client.query(
+        'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING *',
+        [name, email, password, role],
+      );
+      client.release();
+      return result.rows[0];
+    } catch (error) {
+      client.release();
+      throw error;
+    }
+  }
+
+  async updateUser(id: string, body: UserDto) {
+    const pool = this.userDBService.getPool();
+    const client = await pool.connect();
+    try {
+      const { name, email, password, role } = body;
+      const result = await client.query(
+        'UPDATE users SET name = $1, email = $2, password = $3, role = $4 WHERE id = $5 RETURNING *',
+        [name, email, password, role, id],
+      );
+      client.release();
+      if (result.rows.length === 0) {
+        throw new Error('User not found');
+      }
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // async function deleteUser(id:string) {}
 }
